@@ -1,21 +1,24 @@
+"""data.py - Download and clean OHLCV data via yfinance."""
 import yfinance as yf
 import pandas as pd
 
-def get_data(ticker: str) -> pd.DataFrame:
-    df = yf.download(ticker, period="1y", auto_adjust=True, progress=False)
-    
-    # Flatten columns if multi-level (yfinance sometimes returns MultiIndex)
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    
-    # Keep only OHLCV columns
-    df = df[["Open", "High", "Low", "Close", "Volume"]]
-    
-    # Drop rows with missing values
-    df.dropna(inplace=True)
-    
-    # Make sure index is datetime
-    df.index = pd.to_datetime(df.index)
-    df.sort_index(inplace=True)
-    
+def download_data(ticker: str, period: str = "1y") -> pd.DataFrame:
+    data = yf.download(ticker, period=period, progress=False)
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+    data.columns = [c.lower() for c in data.columns]
+    data.reset_index(inplace=True)
+    data.rename(columns={"date": "Date"}, inplace=True)
+    data.set_index("Date", inplace=True)
+    return data
+
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df.dropna(subset=["close", "volume"], inplace=True)
+    df.fillna(df.ffill(), inplace=True)
     return df
+
+def get_data(ticker: str) -> pd.DataFrame:
+    """Wrapper that downloads and cleans in one call."""
+    df = download_data(ticker)
+    return clean_data(df)
